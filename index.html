@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Day Line Lamp">
+<meta name="theme-color" content="#0D0A22">
+<title>Day Line Lamp</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* The lamp: a camera that watches the paper and a voice it listens for. One screen, three states: setup → listening → sending. */
+:root{
+  --bg:#0D0A22; --ink:#F4EFFF; --muted:#A9A2D6; --faint:#6F68A3; --line:rgba(255,255,255,.14);
+  --glow:#FFB86B; --hi:#7CF2C1; --lo:#FF8FA3;
+  --f-display:"Instrument Serif", Georgia, serif;
+  --f-body:"DM Sans", system-ui, -apple-system, sans-serif;
+  --f-mono:"IBM Plex Mono", ui-monospace, Menlo, monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:var(--f-body);-webkit-font-smoothing:antialiased}
+body{background:radial-gradient(60% 40% at 50% 0%, rgba(156,136,255,.22), transparent 70%), radial-gradient(60% 40% at 50% 100%, rgba(255,184,107,.12), transparent 70%), var(--bg)}
+button,input{font:inherit;color:inherit}
+.wrap{min-height:100%;max-width:520px;margin:0 auto;padding:calc(env(safe-area-inset-top,0px) + 20px) max(18px, env(safe-area-inset-right,0px)) calc(env(safe-area-inset-bottom,0px) + 24px) max(18px, env(safe-area-inset-left,0px));display:flex;flex-direction:column;gap:20px}
+.brand{font-family:var(--f-display);font-size:26px}
+.brand i{color:var(--glow)}
+.eyebrow{font-family:var(--f-mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.big{font-family:var(--f-display);font-size:clamp(36px,10vw,50px);line-height:1.02;margin:0;font-weight:400}
+.big em{color:var(--glow)}
+.sub{color:var(--muted);margin:0;font-size:15px;line-height:1.5}
+.b{border:0;border-radius:999px;padding:15px 24px;font-weight:700;font-size:16px;background:linear-gradient(90deg,#FFB86B,#FFD9A0);color:#2A1500;box-shadow:0 0 28px rgba(255,184,107,.45);cursor:pointer}
+.b.ghost{background:transparent;border:1px solid var(--line);color:var(--ink);box-shadow:none;font-weight:500}
+.b.small{padding:9px 16px;font-size:14px}
+.field{display:flex;flex-direction:column;gap:6px}
+.field input{border-radius:12px;border:1px solid var(--line);background:rgba(0,0,0,.3);padding:12px;font-size:14px;width:100%}
+.err{color:var(--lo);font-size:14px;min-height:20px}
+.cam{position:relative;border-radius:24px;overflow:hidden;border:1px solid var(--line);background:#000;aspect-ratio:4/3}
+.cam video{width:100%;height:100%;object-fit:cover;display:block}
+.cam .tag{position:absolute;left:12px;top:12px;font-family:var(--f-mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;background:rgba(13,10,34,.7);padding:5px 9px;border-radius:999px;color:var(--muted)}
+.ear{display:flex;align-items:center;gap:14px}
+.orb{width:22px;height:22px;border-radius:50%;background:var(--hi);box-shadow:0 0 0 0 rgba(124,242,193,.6);animation:listen 1.8s infinite;flex:none}
+.orb.off{background:var(--faint);animation:none;box-shadow:none}
+@keyframes listen{0%{box-shadow:0 0 0 0 rgba(124,242,193,.55)}70%{box-shadow:0 0 0 18px rgba(124,242,193,0)}100%{box-shadow:0 0 0 0 rgba(124,242,193,0)}}
+.say{font-family:var(--f-display);font-size:clamp(30px,8.5vw,40px);line-height:1.05}
+.say em{color:var(--glow)}
+.heard{font-family:var(--f-mono);font-size:12px;color:var(--faint);min-height:18px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.modes{display:flex;background:rgba(255,255,255,.05);border:1px solid var(--line);border-radius:999px;padding:3px;align-self:flex-start}
+.modes button{border:0;background:transparent;border-radius:999px;padding:7px 14px;font-size:13.5px;color:var(--muted);cursor:pointer}
+.modes button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.note{font-size:13px;color:var(--faint);line-height:1.5}
+#flash{position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:40}
+#flash.go{animation:flash .6s ease-out}
+@keyframes flash{0%{opacity:.95}100%{opacity:0}}
+#sending{position:fixed;inset:0;z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;background:radial-gradient(circle at 50% 45%, rgba(255,184,107,.35), transparent 60%), var(--bg);text-align:center;padding:24px}
+#sending .big{font-size:clamp(34px,9vw,46px)}
+.dots::after{content:"…";animation:breathe 1.2s infinite}
+@keyframes breathe{50%{opacity:.3}}
+#shot{max-width:70%;max-height:36vh;border-radius:16px;border:1px solid var(--line)}
+@media (prefers-reduced-motion: reduce){.orb,.dots::after{animation:none}#flash.go{animation:none}}
+</style>
+</head>
+<body>
+<div id="flash"></div>
+<div class="wrap">
+  <div class="brand">Day <i>Line</i> · lamp</div>
+
+  <!-- setup -->
+  <section id="setup" style="display:flex;flex-direction:column;gap:18px">
+    <div>
+      <div class="eyebrow">Bedside lamp</div>
+      <h1 class="big">Draw your line.<br><em>Then just say it.</em></h1>
+    </div>
+    <p class="sub">Mount this phone above the nightstand, camera facing down at your paper. Tap start once; after that, say <b>“Read my line”</b> and the lamp takes the photo and opens Day Line for you.</p>
+    <div class="field" id="inboxField">
+      <label class="eyebrow" for="inbox">Your inbox link (once)</label>
+      <input id="inbox" type="url" inputmode="url" autocomplete="off" placeholder="https://script.google.com/macros/s/…/exec">
+    </div>
+    <div class="err" id="setupErr" role="alert"></div>
+    <button class="b" id="start" type="button">Start the lamp</button>
+    <p class="note">The first start asks for the camera and microphone. Keep this screen open while you film.</p>
+  </section>
+
+  <!-- listening -->
+  <section id="live" hidden style="display:flex;flex-direction:column;gap:18px">
+    <div class="cam"><video id="video" playsinline muted autoplay></video><span class="tag">aim at your paper</span></div>
+    <div class="ear"><span class="orb" id="orb"></span><div class="say" id="say">Say <em>“Read my line”</em></div></div>
+    <div class="heard" id="heard" aria-live="polite"></div>
+    <div class="row">
+      <div class="modes" role="group" aria-label="Trigger">
+        <button type="button" data-mode="voice" aria-pressed="true">Voice</button>
+        <button type="button" data-mode="clap" aria-pressed="false">Double clap</button>
+      </div>
+      <button class="b ghost small" id="snapNow" type="button">Snap now</button>
+    </div>
+    <p class="note" id="liveNote"></p>
+  </section>
+</div>
+
+<!-- sending -->
+<div id="sending" hidden>
+  <img id="shot" alt="The photo of your line">
+  <div class="eyebrow" id="sendEyebrow">Got your line</div>
+  <div class="big dots" id="sendText">Sending it to Day Line</div>
+  <button class="b ghost small" id="sendRetry" type="button" hidden>Back to the lamp</button>
+</div>
+
+<script>
+(function(){
+  const DAYLINE_URL = "https://claude.ai/artifact/JAALvQ1Mr6tvRX3jzseVwb";
+  const $ = id => document.getElementById(id);
+  const store = { get(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }, set(k,v){ try{ localStorage.setItem(k,v); }catch(e){} } };
+
+  // inbox link: from ?inbox= / #inbox=, else saved, else typed
+  const fromUrl = new URLSearchParams(location.search).get("inbox") || new URLSearchParams(location.hash.slice(1)).get("inbox");
+  if(fromUrl) store.set("dl-inbox", fromUrl);
+  const saved = store.get("dl-inbox");
+  if(saved){ $("inbox").value = saved; }
+
+  let stream = null, rec = null, wantListen = false, busy = false, mode = "voice", audioCtx = null, wakeLock = null;
+
+  // ---------- start ----------
+  $("start").onclick = async ()=>{
+    const inbox = $("inbox").value.trim();
+    if(!/^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec/.test(inbox)){ $("setupErr").textContent = "Paste the inbox link that ends in /exec."; return; }
+    store.set("dl-inbox", inbox);
+    $("setupErr").textContent = "";
+    // unlock audio for the shutter sound (must happen inside the tap)
+    try{ audioCtx = new (window.AudioContext || window.webkitAudioContext)(); await audioCtx.resume(); }catch(e){}
+    try{
+      stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:{ideal:"environment"}, width:{ideal:1920}, height:{ideal:1440} }, audio:true });
+    }catch(e){
+      $("setupErr").textContent = "Camera or microphone was blocked. In Settings → Safari → Camera / Microphone, choose Allow, then reload.";
+      return;
+    }
+    $("video").srcObject = stream;
+    try{ await $("video").play(); }catch(e){}
+    $("setup").hidden = true; $("live").hidden = false; $("live").style.display = "flex";
+    keepAwake();
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if(!SR){ setMode("clap"); $("liveNote").textContent = "This browser can't listen for words, so the lamp listens for a double clap instead."; }
+    else setMode("voice");
+  };
+
+  // ---------- keep the screen on ----------
+  async function keepAwake(){
+    try{ if("wakeLock" in navigator){ wakeLock = await navigator.wakeLock.request("screen"); } }catch(e){}
+  }
+  document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState === "visible" && stream){ keepAwake(); if(mode==="voice") startVoice(); } });
+
+  // ---------- trigger modes ----------
+  document.querySelectorAll("[data-mode]").forEach(b=> b.onclick = ()=> setMode(b.dataset.mode));
+  function setMode(m){
+    mode = m;
+    document.querySelectorAll("[data-mode]").forEach(b=> b.setAttribute("aria-pressed", String(b.dataset.mode===m)));
+    if(m==="voice"){ stopClap(); $("say").innerHTML = "Say <em>“Read my line”</em>"; startVoice(); }
+    else { stopVoice(); $("say").innerHTML = "<em>Clap twice</em> when you're done"; startClap(); }
+  }
+
+  // voice: listen continuously, restart whenever Safari stops
+  const PHRASE = /\b(read|red|reed|reading)\b[\s\w']{0,8}\b(line|lines|lime|mine|lying)\b/i;
+  function startVoice(){
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if(!SR || busy) return;
+    wantListen = true;
+    if(rec){ try{ rec.start(); }catch(e){} return; }
+    rec = new SR();
+    rec.lang = "en-US"; rec.continuous = true; rec.interimResults = true; rec.maxAlternatives = 3;
+    rec.onstart = ()=>{ $("orb").classList.remove("off"); };
+    rec.onresult = ev=>{
+      let text = "";
+      for(let i=ev.resultIndex;i<ev.results.length;i++){
+        for(let j=0;j<ev.results[i].length;j++){ const t = ev.results[i][j].transcript; if(j===0) text += t; if(PHRASE.test(t)){ heard(t); return trigger(); } }
+      }
+      heard(text);
+    };
+    rec.onerror = e=>{
+      if(e.error === "not-allowed" || e.error === "service-not-allowed"){ wantListen = false; $("liveNote").textContent = "Speech listening isn't allowed here. Switched to double clap."; setMode("clap"); }
+    };
+    rec.onend = ()=>{ $("orb").classList.add("off"); if(wantListen && !busy && mode==="voice") setTimeout(()=>{ try{ rec.start(); }catch(e){} }, 250); };
+    try{ rec.start(); }catch(e){}
+  }
+  function stopVoice(){ wantListen = false; if(rec){ try{ rec.abort(); }catch(e){} } }
+  function heard(t){ $("heard").textContent = t ? "heard: " + t.trim().slice(-60) : ""; }
+
+  // clap: two sharp peaks 150–800 ms apart
+  let clapRaf = null, clapSrc = null;
+  function startClap(){
+    if(!stream || !audioCtx) return;
+    stopClap();
+    const an = audioCtx.createAnalyser(); an.fftSize = 1024;
+    clapSrc = audioCtx.createMediaStreamSource(stream); clapSrc.connect(an);
+    const buf = new Float32Array(an.fftSize);
+    let floor = 0.02, lastPeak = 0, coolUntil = 0;
+    $("orb").classList.remove("off");
+    const tick = ()=>{
+      an.getFloatTimeDomainData(buf);
+      let peak = 0; for(let i=0;i<buf.length;i++){ const v = Math.abs(buf[i]); if(v>peak) peak = v; }
+      const now = performance.now();
+      floor = floor*0.98 + Math.min(peak, 0.2)*0.02;
+      if(now > coolUntil && peak > 0.35 && peak > floor*6){
+        if(lastPeak && now-lastPeak > 150 && now-lastPeak < 800){ lastPeak = 0; heard("two claps"); stopClap(); trigger(); return; }
+        lastPeak = now; coolUntil = now + 120;
+      }
+      if(lastPeak && now-lastPeak > 800) lastPeak = 0;
+      clapRaf = requestAnimationFrame(tick);
+    };
+    clapRaf = requestAnimationFrame(tick);
+  }
+  function stopClap(){ cancelAnimationFrame(clapRaf); clapRaf = null; if(clapSrc){ try{ clapSrc.disconnect(); }catch(e){} clapSrc = null; } }
+
+  $("snapNow").onclick = ()=> trigger();
+
+  // ---------- take the photo and send it ----------
+  function shutter(){
+    $("flash").classList.remove("go"); void $("flash").offsetWidth; $("flash").classList.add("go");
+    if(!audioCtx) return;
+    try{
+      const t = audioCtx.currentTime, len = 0.08, n = Math.floor(audioCtx.sampleRate*len);
+      const b = audioCtx.createBuffer(1, n, audioCtx.sampleRate), d = b.getChannelData(0);
+      for(let i=0;i<n;i++) d[i] = (Math.random()*2-1) * Math.pow(1-i/n, 3);
+      const s = audioCtx.createBufferSource(), g = audioCtx.createGain(); g.gain.value = 0.6;
+      s.buffer = b; s.connect(g); g.connect(audioCtx.destination); s.start(t);
+    }catch(e){}
+  }
+  async function trigger(){
+    if(busy || !stream) return;
+    busy = true; stopVoice(); stopClap();
+    const v = $("video");
+    const w = v.videoWidth || 1280, h = v.videoHeight || 960, s = Math.min(1, 1280/Math.max(w,h));
+    const c = document.createElement("canvas"); c.width = Math.round(w*s); c.height = Math.round(h*s);
+    c.getContext("2d").drawImage(v, 0, 0, c.width, c.height);
+    const dataUrl = c.toDataURL("image/jpeg", 0.85);
+    shutter();
+    $("shot").src = dataUrl;
+    $("sendEyebrow").textContent = "Got your line"; $("sendText").textContent = "Sending it to Day Line"; $("sendText").classList.add("dots"); $("sendRetry").hidden = true;
+    $("sending").hidden = false;
+    const b64 = dataUrl.split(",")[1];
+    try{
+      await fetch(store.get("dl-inbox"), { method:"POST", mode:"no-cors", headers:{ "Content-Type":"text/plain" }, body:b64 });
+      $("sendEyebrow").textContent = "Sent"; $("sendText").textContent = "Opening Day Line";
+      setTimeout(()=>{ location.href = DAYLINE_URL; }, 1200);
+    }catch(e){
+      $("sendEyebrow").textContent = "Couldn't send"; $("sendText").classList.remove("dots"); $("sendText").textContent = "Check the internet and try again.";
+      $("sendRetry").hidden = false;
+    }
+  }
+  $("sendRetry").onclick = ()=>{ $("sending").hidden = true; busy = false; setMode(mode); };
+  // coming back from Day Line with the back button
+  window.addEventListener("pageshow", e=>{ if(e.persisted){ $("sending").hidden = true; busy = false; if(stream) setMode(mode); } });
+})();
+</script>
+</body>
+</html>
