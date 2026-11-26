@@ -70,6 +70,7 @@ button,input{font:inherit;color:inherit}
 <div class="wrap">
   <div class="brand">Day <i>Line</i> · lamp</div>
 
+  <div id="waking" hidden class="sub">Waking the lamp…</div>
   <!-- setup -->
   <section id="setup" style="display:flex;flex-direction:column;gap:18px">
     <div>
@@ -125,27 +126,35 @@ button,input{font:inherit;color:inherit}
   let stream = null, rec = null, wantListen = false, busy = false, mode = "voice", audioCtx = null, wakeLock = null;
 
   // ---------- start ----------
-  $("start").onclick = async ()=>{
+  const INBOX_OK = v=> /^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec/.test(v||"");
+  $("start").onclick = ()=> startLamp(true);
+  async function startLamp(fromTap){
     const inbox = $("inbox").value.trim();
-    if(!/^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec/.test(inbox)){ $("setupErr").textContent = "Paste the inbox link that ends in /exec."; return; }
+    if(!INBOX_OK(inbox)){ $("setupErr").textContent = "Paste the inbox link that ends in /exec."; showSetup(); return; }
     store.set("dl-inbox", inbox);
     $("setupErr").textContent = "";
     // unlock audio for the shutter sound (must happen inside the tap)
-    try{ audioCtx = new (window.AudioContext || window.webkitAudioContext)(); await audioCtx.resume(); }catch(e){}
+    try{ audioCtx = new (window.AudioContext || window.webkitAudioContext)(); const r = audioCtx.resume(); if(fromTap) await r; }catch(e){}
     try{
       stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:{ideal:"environment"}, width:{ideal:1920}, height:{ideal:1440} }, audio:true });
     }catch(e){
-      $("setupErr").textContent = "Camera or microphone was blocked. In Settings → Safari → Camera / Microphone, choose Allow, then reload.";
+      showSetup();
+      $("setupErr").textContent = fromTap ? "Camera or microphone was blocked. In Settings → Safari → Camera / Microphone, choose Allow, then reload." : "";
       return;
     }
     $("video").srcObject = stream;
     try{ await $("video").play(); }catch(e){}
-    $("setup").hidden = true; $("live").hidden = false; $("live").style.display = "flex";
+    $("waking").hidden = true; $("setup").hidden = true; $("live").hidden = false; $("live").style.display = "flex";
     keepAwake();
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if(!SR){ setMode("clap"); $("liveNote").textContent = "This browser can't listen for words, so the lamp listens for a double clap instead."; }
     else setMode("voice");
-  };
+  }
+  function showSetup(){ $("waking").hidden = true; $("setup").hidden = false; $("setup").style.display = "flex"; }
+  // the sound needs one touch on iOS; any touch on the page unlocks it
+  document.addEventListener("pointerdown", ev=>{ try{ if(audioCtx && audioCtx.state !== "running") audioCtx.resume(); }catch(e){} if(stream && !busy && mode==="voice" && !(ev.target && ev.target.closest && ev.target.closest("button"))) startVoice(); }, {passive:true});
+  // already set up: wake straight into listening, no button
+  if(INBOX_OK(saved || fromUrl)){ $("setup").hidden = true; $("waking").hidden = false; startLamp(false); }
 
   // ---------- keep the screen on ----------
   async function keepAwake(){
