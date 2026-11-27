@@ -75,9 +75,9 @@ button,input{font:inherit;color:inherit}
   <section id="setup" style="display:flex;flex-direction:column;gap:18px">
     <div>
       <div class="eyebrow">Bedside lamp</div>
-      <h1 class="big">Draw your line.<br><em>Then clap twice.</em></h1>
+      <h1 class="big">Draw your line.<br><em>Then just say it.</em></h1>
     </div>
-    <p class="sub">Mount this phone above the nightstand, camera facing down at your paper. Tap once; after that, <b>clap twice</b> and the lamp takes the photo and opens Day Line for you.</p>
+    <p class="sub">Mount this phone above the nightstand, camera facing down at your paper. Tap once; after that, say <b>“Read my line”</b> and the lamp takes the photo and opens Day Line for you.</p>
     <div class="field" id="inboxField">
       <label class="eyebrow" for="inbox">Your inbox link (once)</label>
       <input id="inbox" type="url" inputmode="url" autocomplete="off" placeholder="https://script.google.com/macros/s/…/exec">
@@ -90,7 +90,7 @@ button,input{font:inherit;color:inherit}
   <!-- listening -->
   <section id="live" hidden style="display:flex;flex-direction:column;gap:18px">
     <div class="cam"><video id="video" playsinline muted autoplay></video><span class="tag">aim at your paper</span></div>
-    <div class="ear"><span class="orb" id="orb"></span><div class="say" id="say"><em>Clap twice</em> when you're done</div></div>
+    <div class="ear"><span class="orb" id="orb"></span><div class="say" id="say">Say <em>“Read my line”</em></div></div>
     <div class="heard" id="heard" aria-live="polite"></div>
     <div class="row">
       <div class="modes" role="group" aria-label="Trigger" hidden>
@@ -123,7 +123,7 @@ button,input{font:inherit;color:inherit}
   const saved = store.get("dl-inbox");
   if(saved){ $("inbox").value = saved; }
 
-  let stream = null, rec = null, wantListen = false, busy = false, mode = "clap", audioCtx = null, wakeLock = null;
+  let stream = null, rec = null, wantListen = false, busy = false, mode = "voice", audioCtx = null, wakeLock = null;
 
   // ---------- start ----------
   const INBOX_OK = v=> /^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec/.test(v||"");
@@ -136,7 +136,7 @@ button,input{font:inherit;color:inherit}
     // unlock audio for the shutter sound (must happen inside the tap)
     try{ audioCtx = new (window.AudioContext || window.webkitAudioContext)(); const r = audioCtx.resume(); if(fromTap) await r; }catch(e){}
     try{
-      stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:{ideal:"environment"}, width:{ideal:1920}, height:{ideal:1440} }, audio:{ echoCancellation:false, noiseSuppression:false, autoGainControl:false } });
+      stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:{ideal:"environment"}, width:{ideal:1920}, height:{ideal:1440} } });
     }catch(e){
       showSetup();
       $("setupErr").textContent = fromTap ? "Camera or microphone was blocked. In Settings → Safari → Camera / Microphone, choose Allow, then reload." : "";
@@ -146,11 +146,11 @@ button,input{font:inherit;color:inherit}
     try{ await $("video").play(); }catch(e){}
     $("waking").hidden = true; $("setup").hidden = true; $("live").hidden = false; $("live").style.display = "flex";
     keepAwake();
-    setMode("clap");
+    setMode("voice");
   }
   function showSetup(){ $("waking").hidden = true; $("setup").hidden = false; $("setup").style.display = "flex"; }
   // the sound needs one touch on iOS; any touch on the page unlocks it
-  document.addEventListener("pointerdown", ev=>{ try{ if(audioCtx && audioCtx.state !== "running") audioCtx.resume().then(()=>{ if(mode==="clap" && !busy){ $("say").innerHTML = "<em>Clap twice</em> when you're done"; startClap(); } }); }catch(e){} if(stream && !busy && mode==="voice" && !(ev.target && ev.target.closest && ev.target.closest("button"))) startVoice(); }, {passive:true});
+  document.addEventListener("pointerdown", ev=>{ try{ if(audioCtx && audioCtx.state !== "running") audioCtx.resume(); }catch(e){} if(stream && !busy && mode==="voice" && !(ev.target && ev.target.closest && ev.target.closest("button"))) startVoice(); }, {passive:true});
   // already set up: wake straight into listening, no button
   if(INBOX_OK(saved || fromUrl)){ $("setup").hidden = true; $("waking").hidden = false; startLamp(false); }
 
@@ -158,7 +158,7 @@ button,input{font:inherit;color:inherit}
   async function keepAwake(){
     try{ if("wakeLock" in navigator){ wakeLock = await navigator.wakeLock.request("screen"); } }catch(e){}
   }
-  document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState === "visible" && stream){ keepAwake(); if(!busy) setMode("clap"); } });
+  document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState === "visible" && stream){ keepAwake(); if(!busy) setMode("voice"); } });
 
   // ---------- trigger modes ----------
   document.querySelectorAll("[data-mode]").forEach(b=> b.onclick = ()=> setMode(b.dataset.mode));
@@ -178,7 +178,7 @@ button,input{font:inherit;color:inherit}
     if(rec){ try{ rec.start(); }catch(e){} return; }
     rec = new SR();
     rec.lang = "en-US"; rec.continuous = true; rec.interimResults = true; rec.maxAlternatives = 3;
-    rec.onstart = ()=>{ $("orb").classList.remove("off"); };
+    rec.onstart = ()=>{ $("orb").classList.remove("off"); $("liveNote").textContent = ""; };
     rec.onresult = ev=>{
       let text = "";
       for(let i=ev.resultIndex;i<ev.results.length;i++){
@@ -187,7 +187,7 @@ button,input{font:inherit;color:inherit}
       heard(text);
     };
     rec.onerror = e=>{
-      if(e.error === "not-allowed" || e.error === "service-not-allowed"){ wantListen = false; $("liveNote").textContent = "Speech listening isn't allowed here. Switched to double clap."; setMode("clap"); }
+      if(e.error === "not-allowed" || e.error === "service-not-allowed"){ wantListen = false; $("orb").classList.add("off"); $("liveNote").textContent = "Tap the screen once to start listening. If it still won't listen: Settings → Apps → Safari → Microphone → Allow, and turn on Siri."; }
     };
     rec.onend = ()=>{ $("orb").classList.add("off"); if(wantListen && !busy && mode==="voice") setTimeout(()=>{ try{ rec.start(); }catch(e){} }, 250); };
     try{ rec.start(); }catch(e){}
@@ -257,7 +257,7 @@ button,input{font:inherit;color:inherit}
       $("sendRetry").hidden = false;
     }
   }
-  $("sendRetry").onclick = ()=>{ $("sending").hidden = true; busy = false; setMode("clap"); };
+  $("sendRetry").onclick = ()=>{ $("sending").hidden = true; busy = false; setMode("voice"); };
   // coming back from Day Line with the back button
   window.addEventListener("pageshow", e=>{ if(e.persisted){ $("sending").hidden = true; busy = false; if(stream) setMode(mode); } });
 })();
