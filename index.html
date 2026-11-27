@@ -75,9 +75,9 @@ button,input{font:inherit;color:inherit}
   <section id="setup" style="display:flex;flex-direction:column;gap:18px">
     <div>
       <div class="eyebrow">Bedside lamp</div>
-      <h1 class="big">Draw your line.<br><em>Then just say it.</em></h1>
+      <h1 class="big">Draw your line.<br><em>Then clap twice.</em></h1>
     </div>
-    <p class="sub">Mount this phone above the nightstand, camera facing down at your paper. Tap start once; after that, say <b>“Read my line”</b> and the lamp takes the photo and opens Day Line for you.</p>
+    <p class="sub">Mount this phone above the nightstand, camera facing down at your paper. Tap once; after that, <b>clap twice</b> and the lamp takes the photo and opens Day Line for you.</p>
     <div class="field" id="inboxField">
       <label class="eyebrow" for="inbox">Your inbox link (once)</label>
       <input id="inbox" type="url" inputmode="url" autocomplete="off" placeholder="https://script.google.com/macros/s/…/exec">
@@ -90,12 +90,12 @@ button,input{font:inherit;color:inherit}
   <!-- listening -->
   <section id="live" hidden style="display:flex;flex-direction:column;gap:18px">
     <div class="cam"><video id="video" playsinline muted autoplay></video><span class="tag">aim at your paper</span></div>
-    <div class="ear"><span class="orb" id="orb"></span><div class="say" id="say">Say <em>“Read my line”</em></div></div>
+    <div class="ear"><span class="orb" id="orb"></span><div class="say" id="say"><em>Clap twice</em> when you're done</div></div>
     <div class="heard" id="heard" aria-live="polite"></div>
     <div class="row">
-      <div class="modes" role="group" aria-label="Trigger">
-        <button type="button" data-mode="voice" aria-pressed="true">Voice</button>
-        <button type="button" data-mode="clap" aria-pressed="false">Double clap</button>
+      <div class="modes" role="group" aria-label="Trigger" hidden>
+        <button type="button" data-mode="clap" aria-pressed="true">Double clap</button>
+        <button type="button" data-mode="voice" aria-pressed="false">Voice</button>
       </div>
       <button class="b ghost small" id="snapNow" type="button">Snap now</button>
     </div>
@@ -123,7 +123,7 @@ button,input{font:inherit;color:inherit}
   const saved = store.get("dl-inbox");
   if(saved){ $("inbox").value = saved; }
 
-  let stream = null, rec = null, wantListen = false, busy = false, mode = "voice", audioCtx = null, wakeLock = null;
+  let stream = null, rec = null, wantListen = false, busy = false, mode = "clap", audioCtx = null, wakeLock = null;
 
   // ---------- start ----------
   const INBOX_OK = v=> /^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec/.test(v||"");
@@ -136,7 +136,7 @@ button,input{font:inherit;color:inherit}
     // unlock audio for the shutter sound (must happen inside the tap)
     try{ audioCtx = new (window.AudioContext || window.webkitAudioContext)(); const r = audioCtx.resume(); if(fromTap) await r; }catch(e){}
     try{
-      stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:{ideal:"environment"}, width:{ideal:1920}, height:{ideal:1440} }, audio:true });
+      stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:{ideal:"environment"}, width:{ideal:1920}, height:{ideal:1440} }, audio:{ echoCancellation:false, noiseSuppression:false, autoGainControl:false } });
     }catch(e){
       showSetup();
       $("setupErr").textContent = fromTap ? "Camera or microphone was blocked. In Settings → Safari → Camera / Microphone, choose Allow, then reload." : "";
@@ -146,13 +146,11 @@ button,input{font:inherit;color:inherit}
     try{ await $("video").play(); }catch(e){}
     $("waking").hidden = true; $("setup").hidden = true; $("live").hidden = false; $("live").style.display = "flex";
     keepAwake();
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if(!SR){ setMode("clap"); $("liveNote").textContent = "This browser can't listen for words, so the lamp listens for a double clap instead."; }
-    else setMode("voice");
+    setMode("clap");
   }
   function showSetup(){ $("waking").hidden = true; $("setup").hidden = false; $("setup").style.display = "flex"; }
   // the sound needs one touch on iOS; any touch on the page unlocks it
-  document.addEventListener("pointerdown", ev=>{ try{ if(audioCtx && audioCtx.state !== "running") audioCtx.resume(); }catch(e){} if(stream && !busy && mode==="voice" && !(ev.target && ev.target.closest && ev.target.closest("button"))) startVoice(); }, {passive:true});
+  document.addEventListener("pointerdown", ev=>{ try{ if(audioCtx && audioCtx.state !== "running") audioCtx.resume().then(()=>{ if(mode==="clap" && !busy){ $("say").innerHTML = "<em>Clap twice</em> when you're done"; startClap(); } }); }catch(e){} if(stream && !busy && mode==="voice" && !(ev.target && ev.target.closest && ev.target.closest("button"))) startVoice(); }, {passive:true});
   // already set up: wake straight into listening, no button
   if(INBOX_OK(saved || fromUrl)){ $("setup").hidden = true; $("waking").hidden = false; startLamp(false); }
 
@@ -160,15 +158,15 @@ button,input{font:inherit;color:inherit}
   async function keepAwake(){
     try{ if("wakeLock" in navigator){ wakeLock = await navigator.wakeLock.request("screen"); } }catch(e){}
   }
-  document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState === "visible" && stream){ keepAwake(); if(mode==="voice") startVoice(); } });
+  document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState === "visible" && stream){ keepAwake(); if(!busy) setMode("clap"); } });
 
   // ---------- trigger modes ----------
   document.querySelectorAll("[data-mode]").forEach(b=> b.onclick = ()=> setMode(b.dataset.mode));
   function setMode(m){
-    mode = m;
+    mode = m; store.set("dl-mode", m);
     document.querySelectorAll("[data-mode]").forEach(b=> b.setAttribute("aria-pressed", String(b.dataset.mode===m)));
     if(m==="voice"){ stopClap(); $("say").innerHTML = "Say <em>“Read my line”</em>"; startVoice(); }
-    else { stopVoice(); $("say").innerHTML = "<em>Clap twice</em> when you're done"; startClap(); }
+    else { stopVoice(); $("say").innerHTML = (audioCtx && audioCtx.state === "running") ? "<em>Clap twice</em> when you're done" : "Tap once, then <em>clap twice</em>"; startClap(); }
   }
 
   // voice: listen continuously, restart whenever Safari stops
@@ -259,7 +257,7 @@ button,input{font:inherit;color:inherit}
       $("sendRetry").hidden = false;
     }
   }
-  $("sendRetry").onclick = ()=>{ $("sending").hidden = true; busy = false; setMode(mode); };
+  $("sendRetry").onclick = ()=>{ $("sending").hidden = true; busy = false; setMode("clap"); };
   // coming back from Day Line with the back button
   window.addEventListener("pageshow", e=>{ if(e.persisted){ $("sending").hidden = true; busy = false; if(stream) setMode(mode); } });
 })();
